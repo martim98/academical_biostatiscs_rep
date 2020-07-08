@@ -1,0 +1,56 @@
+---
+title: "Death penalty, homidic rate"
+author: "Martim Almeida"
+date: "6/4/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(ggplot2)
+```
+
+## R Markdown
+
+```{r}
+library(blorr)
+states_penalty <- c('Alabama', 'Arizona', 'Arkansas', 'California', 'Florida', 'Georgia', 'Idaho', 'Nebraska', 'Nevada', 'North Carolina', 'Ohio', 'Oklahoma', 'Oregon', 'Pennsylvania', 'Indiana', 'Kansas', 'Kentucky', 'Louisiana', 'Mississippi', 'Missouri', 'Montana', 'South Carolina', 'South Dakota', 'Tennessee', 'Texas', 'Utah', 'Virginia', 'Wyoming')
+
+data <- fread('table-1.csv', header = T)
+
+
+data <- melt(data, id.vars = 'State', measure.vars = c('2018', '2017', '2014', '2010', '2005', '2000', '1996'), variable.name = 'Year', value.name = 'Death_Rate')
+
+data[Year == 2018][order(-Death_Rate)]
+
+data[State %chin% states_penalty, penalty := 1][is.na(penalty), penalty := 0] 
+                                                
+                                                
+data$Year <- as.character(data$Year)                                 
+data$penalty <- factor(data$penalty)
+
+mod <- lm(Death_Rate ~ penalty, data = data[Year == 2018])
+mod
+
+mod_log <- glm(penalty ~Death_Rate, data = data[Year == 2018], family = binomial())
+summary(mod_log)
+plot(mod)
+blr_confusion_matrix(mod_log)
+
+ggplot(data[penalty == '1'], aes(Year, Death_Rate, group = 1)) + 
+  geom_line() +
+  facet_wrap(~State) + 
+  theme_classic()
+
+
+ggplot(data[penalty == '0'], aes(Year, Death_Rate, group = 1)) + 
+  geom_line() +
+  facet_wrap(~State) + 
+  theme_classic()
+
+data[Year == 2018][order(-Death_Rate)]
+
+
+
+```   

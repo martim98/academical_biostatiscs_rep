@@ -1,0 +1,120 @@
+---
+title: "pooisson regression"
+author: "Martim"
+date: "5/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+# Poisson Regression
+
+data <- read.csv('Ceriodaphnia.csv', header = T, sep = ',')
+data$Strain <- factor(data$Strain)
+str(data)
+summary(data)
+
+# check if there are several obs with same values
+table(data$Cerio)
+cerio <- data$Cerio
+
+```
+
+```{r}
+# mean and variance
+# mean and variance should be more or less similar if
+# sample come from same population
+# but they depend on the predictor variables
+mean(cerio)
+var(cerio)
+```
+
+```{r}
+tapply(data$Cerio, data$Strain, mean)
+tapply(data$Cerio, data$Strain, var)
+```
+
+```{r}
+plot(data$Conc, data$Cerio, col = data$Strain, pch = 19)
+```
+
+```{r}
+null_model <- glm(formula = cerio ~1 ,family = 'poisson', data = data)
+summary(null_model)
+
+# Expected value is exp(Beta_0)
+
+exp(null_model$coefficients[1])
+
+```
+
+
+```{r}
+model_1 <- glm(Cerio ~ Strain, family = 'poisson', data = data)
+
+summary(model_1)
+
+```
+
+
+The expected value for each strain is $log(\mu) = \beta_0 + \beta_1Strain_1$ and $log(\mu) = \beta_0 + \beta_1Strain_2$
+which means:
++ $\mu_{1, 2} = \exp(\beta_0) + \exp(\beta_1Strain_{1,2})$
+
+
+```{r}
+model_2 <- glm(Cerio ~ Conc, family = 'poisson', data = data)
+
+summary(model_2)
+```
+
+```{r}
+model_3 <- glm(Cerio ~ Conc + Strain, family = 'poisson', data = data)
+
+summary(model_3)
+```
+
+```{r}
+anova(model_2, model_3, test = 'Chisq')
+```
+
+```{r}
+plot(model_3)
+
+```
+
+# Exercicio 2
+```{r}
+data <- read.csv(file = 'Dados_Fracturas.csv', sep = ';',
+                 header = T)
+colnames(data) =c('X', 'n_fractures', 'thickness', 'extract_perc',
+                  'seam_height', 'years')
+data
+```
+
+
+
+```{r}
+null_mod <- glm(n_fractures ~ 1, 
+                family = 'poisson',
+                data = data, 
+                offset = log(years))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,191 @@
+---
+title: "Regressao logistica"
+author: "Martim Almeida"
+date: "6/2/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(ggplot2)
+```
+
+## Metoprolol
+
+```{r}
+data <- data.table(treatment = c('Metoprolol', 'Placebo'),
+                   total = c(698, 697), 
+                   died = c(40, 62))
+data$treatment <- factor(data$treatment, levels = c('Placebo', 'Metoprolol'))
+
+
+response <- cbind(data$died, data$total - data$died )
+response
+
+mod_1 <- glm(response ~ treatment, data = data, family = binomial())
+summary(mod_1)
+
+coefs <- mod_1$coefficients
+p_m <- exp(coefs[1] + coefs[2])
+p_p <- exp(coefs[1])
+p_m
+p_p
+
+predict(mod_1)
+fitted(mod_1)
+
+a <- (1 - exp(coefs[2])) * 100
+cat('With metoprolol, there is a reduction of', round(a, 1), '% of the risk of dying')
+```
+
+$logit(P(Y=1|x)) = log(\frac{\pi(x)}{1 - \pi(x)}) = \beta_0 + beta_1x$
+
+## Birth data
+
+```{r}
+data <- read.table('lowbwtdata.txt', header = T)
+data
+data$low <- factor(data$low)
+data$race <- factor(data$race)
+data$smoke <- factor(data$smoke)
+data$ht <- factor(data$ht)
+data <- as.data.table(data)
+data[, ui:=NULL]
+summary(data)
+data_continuous <- data[, .(id, age, lwt, ptl, ftv, bwt)]
+
+cor(data_continuous[, 2:6])
+
+#### DANGER
+plot(data$id, data$bwt)
+
+
+
+str(data)
+boxplot(data$lwt)
+
+ggplot(data, aes(low)) + 
+  geom_boxplot(aes(y = lwt))
+
+ggplot(data, aes(lwt)) + 
+  geom_point(aes(y = bwt, colour = smoke))
+ggplot(data, aes(low)) + 
+  geom_boxplot(aes(y = ))
+
+
+ggplot(data) + 
+  geom_histogram(aes(x = low), stat= 'count') + 
+  facet_wrap(~smoke)
+
+ggplot(data) + 
+  geom_histogram(aes(x = low), stat= 'count') + 
+  facet_wrap(~ht) + 
+  scale_y_continuous(breaks = seq(0, 120, 10))
+
+mod_1 <- glm(low ~ lwt, data = data, family = binomial())
+mod_null <-glm(low ~ 1, data = data, family = binomial())
+summary(mod_null)
+exp(mod_null$coefficients)
+summary(mod_1)
+coefs_1 <-mod_1$coefficients
+exp(coefs_1)
+exp(coefs_1[1])
+1 - exp(coefs_1[1])
+
+anova(mod_null, mod_1, test = 'Chisq')
+#É significativo
+
+mod_2 <- glm(low ~ lwt + smoke, data = data, family = binomial())
+mod_2_1 <- glm(low ~ lwt + ht, data = data, family = binomial())
+summary(mod_2)
+summary(mod_2_1)
+exp(mod_2_1$coefficients)
+coefs_2 <- mod_2$coefficients
+
+exp(coefs_2)
+
+mod_3 <- glm(low ~ lwt + ht + smoke, data = data, family = binomial())
+summary(mod_3)
+anova(mod_2, mod_3, test = 'Chisq')
+
+mod_4 <- glm(low ~ lwt + ptl + ht + smoke, data = data, family = binomial())
+summary(mod_4)
+anova(mod_3, mod_4, test = 'Chisq')
+
+mod_5 <- glm(low ~ lwt + ptl + ht + smoke + race, data = data, family = binomial())
+summary(mod_5)
+
+anova(mod_4, mod_5, test= 'Chisq')
+
+
+
+step(glm(low ~ lwt + ptl + ht + smoke + race + ftv, data = data, family = binomial()))
+
+pearson <- resid(mod_5, type = 'pearson')
+deviance <-  resid(mod_5, type = 'deviance')
+
+plot(mod_5$fitted.values, pearson)
+plot(mod_5$fitted.values, deviance)
+
+log_1 <- -mod_5$deviance/2
+
+log_2 <- -mod_4$deviance/2
+
+log_1 / log_2
+
+mod_int1 <- mod_5 <- glm(low ~ lwt + ht +  race + ptl + smoke, data = data, family = binomial())
+summary(mod_int1)
+library(car)
+vif(mod_5)
+
+
+hat <- hatvalues(mod_5)
+library(blorr)
+
+blr_confusion_matrix(mod_5)
+diagnos <-  blr_residual_diagnostics(mod_5)
+blr_model_fit_stats(mod_4)
+summary(mod_5)
+
+plot(data$id, diagnos$c)
+
+table <- blr_gains_table(mod_5)
+blr_roc_curve(table)
+
+
+blr_plot_deviance_fitted(mod_5) + theme_classic()
+blr_plot_diag_fit(mod_5)
+blr_plot_residual_fitted(mod_5)
+
+age <- data$age
+lwt <- data$lwt
+
+data$age_scaled <- scale(age)
+data$lwt_scaled <- scale(lwt)
+
+data
+
+mod_6 <- glm(low ~ lwt_scaled + ht +  race + ptl + smoke, data = data, family = binomial())
+summary(mod_5)
+summary(mod_6)
+
+
+blr_confusion_matrix(mod_5)
+blr_confusion_matrix(mod_6)
+
+blr_model_fit_stats(mod_5)
+blr_model_fit_stats(mod_6)
+
+
+
+par(mfrow = c(1, 2))
+plot(density(data$lwt))
+plot(density(log(data$lwt)))
+
+
+
+
+
+```
+
