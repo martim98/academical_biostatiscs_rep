@@ -1,0 +1,440 @@
+---
+title: "Coronavirus Progression"
+author: "Martim Almeida"
+date: "3/15/2020"
+output: html_document
+---
+
+```{r setup, include=T,  echo = F, warning = F}
+knitr::opts_chunk$set(echo = F, warning = F )
+library(data.table)
+library(minpack.lm)
+library(ggplot2)
+library(gridExtra)
+library(gganimate)
+library(gifski)
+library(kableExtra)
+library(MASS)
+
+#source('spain.R') 
+```
+
+# Portugal, predicting total number of cases
+We should not predict for very distant observations how our data will behave, nonetheless, three models could be computed given the observations so far.  
+This should not be interpreted as an imperative prediction, but just a model fitting with no assumptions guaranteed.  
+  
+   
+```{r ok2, echo = F}
+
+
+## dados
+x <- c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+       11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+       36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52)
+
+y <- c(2, 4, 6, 9, 
+       13, 18, 30, 39, 41, 59, 78, 112, 169, 245, 331, 448,
+       642, 785, 1020, 1280, 1600, 2060, 2362, 2995, 3544, 4268, 5170, 5962, 6408, 7443, 8251, 9034, 9886,
+       10524, 11278, 11730, 12442, 13141, 13956, 15472, 15987, 16585, 16934, 17448, 18091, 18841, 19022, 19685, 20206, 20863, 21379, 21982)
+
+deaths <- c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1, 2, 3, 6, 12, 14, 23, 33, 43, 60, 76, 100, 119, 140, 160, 187, 209, 246,
+            266, 295, 311, 345, 380, 409, 435, 470, 504, 535, 567, 599, 629, 657, 687, 714, 735, 762, 785)
+recovered <- c(0,0,0,0,0,0,0,0,0,0,1,1,1,2,3,3, 3, 3, 5, 5, 5, 14, 14, 22, 43, 43, 43, 43, 43, 43, 43,  68, 68, 75, 75,
+               140, 184, 196, 205, 233, 266, 266, 277, 347, 383, 493, 519,610, 610, 610, 917, 1143)
+
+
+
+data <- data.frame(x = x,
+                   y = y,
+                   deaths = deaths,
+                   recovered = recovered)
+
+data_aux <- data.frame(x = x[1:14],
+                       y = y[1:14])
+
+
+data_2 <- data.frame(x = seq(1, 60))
+
+## Quadratic model
+model <- lm(y~ I(x^3)* I(x^2), data = data)
+summary(model)
+
+new_values <- predict(model, newdata = data_2, interval = 'prediction', level = 0.99)
+
+data_3<- data.frame(x = seq(1, 60),
+                    y_predict = new_values)
+
+data_final <- as.data.table(merge(data_3, data, all.x = T))
+data_final[x <13, `:=` (y_predict.lwr = NA, y_predict.upr = NA)]
+##
+
+##estimar o dia médio de ponto de viragem
+dias_medios <- c(19, 16, 21, 24)
+s <- sd(dias_medios)
+m <- mean(dias_medios)
+
+xmid_min <- round(qnorm(0.10, mean = m, sd = s),0)
+xmid_max <- round(qnorm(0.999, mean = m, sd = s),0)
+
+
+## Logis model
+dados <- data_final[!is.na(y)]
+
+data_choose <- 50
+
+
+
+model_logis_new <- nls( y ~ SSlogis(x, Asym, xmid = 34, scal), data = dados[1:data_choose],
+     start = c(Asym = 10000, scal = 2),
+     nls.control(maxiter = 5000,
+                 warnOnly = T,
+                 minFactor = 0.0000000000000000001))
+model_logis <- nls( y ~ SSlogis(x, Asym, xmid = 26 , scal), data = dados[1:data_choose],
+     start = c(Asym = 2000, scal = 2),
+     nls.control(maxiter = 5000,
+                 warnOnly = T,
+                 minFactor = 0.0000000000000000001))
+
+model_predict <- nls( y ~ SSlogis(x, Asym, xmid , scal), data = dados[1:data_choose],
+     start = c(Asym = 5000, xmid = 20, scal = 2),
+     nls.control(maxiter = 5000,
+                 warnOnly = T,
+                 minFactor = 0.0000000000000000001))
+
+model_logis
+model_logis_new
+model_predict
+
+predic_logis_new <-  predict(model_logis_new, data_2)
+predic_logis <- predict(model_logis, data_2)
+predic_estimated <- predict(model_predict, data_2)
+
+
+
+data_final[, predic_logis := predic_logis ]
+data_final[, predic_logis_new := predic_logis_new ]
+data_final[, estimated := predic_estimated]
+##
+
+## Normal model (norm)
+data_final[x < 16, y_new := y/10000]
+data_final[, norm := 10000 * pnorm(x, mean = 27, sd = 6.5)][, norm := floor(norm)]
+##
+
+## Growth calculations
+data_final[, growth := ((y - shift(y))/shift(y)) * 100][x == 1, growth := 0]
+data_final[, growth_tot := y - shift(y)][x == 1, growth_tot := y]
+data_final[x > 0, expected_growth := (predic_logis_new - shift(predic_logis_new))/shift(predic_logis_new) * 100]
+data_final[x > 25, expected_growth_good := (estimated- shift(estimated))/shift(estimated) * 100]
+##
+
+theme_set(theme_linedraw())
+data <- data.table(data)
+
+```
+
+
+```{r, other_modeling}
+# virus_model <- function(beta0, alpha, D, N, K){
+#   fst <- 1 -alpha
+#   scd <- (1-D/N)^K
+#   return(beta0 * fst * scd)
+# }
+# dados <- data_final[!is.na(y), 'growth_tot']
+# 
+# modeling <- nlsLM(data = dados, formula = y ~ virus_model() 
+# modeling
+# a <- predict(modeling, data_2)
+# a
+# hist(a)
+
+```
+
+# Portugal
+
+
+```{r, exploratory, echo  = F}
+
+ggplot(data_final) +
+  geom_bar(aes(x, y), stat = 'identity',
+             fill = 'blue') +
+  geom_line(aes(x, y)) +
+  geom_bar(aes(x, deaths),
+           stat = 'identity',
+             fill = 'red') +
+  geom_bar(aes(x, recovered),
+           stat = 'identity',
+            fill = 'lightgreen') +
+  scale_y_continuous(limits = c(0, 30000),
+                     breaks = seq(0, 30000, 10000)) +
+  scale_x_continuous(limits = c(0, 55),
+                     breaks = seq(0, 55, 2)) +
+  ggtitle('Total cases, deaths, recovered and growth')+
+  xlab('Days') +
+  ylab('Cases')
+
+ggplot(data_final) +
+  geom_bar(aes(x, growth_tot), stat = 'identity',
+           fill = 'darkgreen') +
+  scale_x_continuous(limits = c(0, 55),
+                     breaks = seq(0, 55, 2)) +
+  scale_y_continuous(limits = c(0, 3000),
+                     breaks = seq(0, 3000, 200))
+
+ggplot(data_final) +
+  geom_bar(aes(x, deaths), stat = 'identity',
+           fill = 'red') +
+  scale_x_continuous(limits = c(0, 55),
+                     breaks = seq(0, 55, 2)) +
+  scale_y_continuous(limits = c(0, 1200),
+                     breaks = seq(0, 1000, 100))
+
+ggplot(data_final) +
+  geom_bar(aes(x, recovered), stat = 'identity',
+           fill = 'blue') +
+  scale_x_continuous(limits = c(0, 55),
+                     breaks = seq(0, 55, 2)) +
+  scale_y_continuous(limits = c(0, 5000),
+                     breaks = seq(0, 5000, 1000))
+```
+
+
+
+
+```{r, estimated_preogression}
+
+ggplot(data_final) +
+  geom_point(aes(x, y),
+             colour = 'blue') +
+  #geom_line(aes(x, predic_logis),
+            #linetype = 'dashed') +
+  geom_line(aes(x, estimated)) +
+  geom_line(aes(x, predic_logis_new),
+            linetype = 'dashed') +
+  scale_y_continuous(limits = c(0, 30000),
+                     breaks = seq(0, 55000, 5000)) +
+  scale_x_continuous(breaks = seq(0, 60, 5)) +
+  geom_ribbon(data=subset(data_final, x >= 28  & x <= 60), 
+          aes(x = x, ymin=estimated, ymax=predic_logis_new), fill="red", alpha = 0.2) +
+  xlab('Days') +
+  ylab('Total cases') +
+  ggtitle('Possible total case progression - COVID-19 Portugal') -> p
+
+p + scale_x_continuous(limits = c(34, 44),
+                       breaks = seq(34, 44, 1)) +
+  scale_y_continuous(limits = c(9000, 19000),
+                     breaks = seq(9000, 19000, 1000)) ->p2
+
+p
+p2
+
+
+```
+
+
+```{r, growth_progression, echo = F}
+
+#a <- merge(data_final, data_spain, by.x = c('x'), by.y = c('y'))
+
+inter <- round(mean(data_final[!is.na(y) & x < length(x), growth]),2)
+inter_sd <- round(sd(data_final[!is.na(y) & x < length(x), growth]), 2)
+
+
+in_x <- data_final[x > 12, x]
+out_y <- data_final[x > 12, growth]
+# # # 
+model_linear <- lm(out_y ~ in_x)
+summary(model_linear)
+
+values <- predict(model_linear, data_2['x' >  31], interval = 'prediction')
+
+h0 <- model_linear$coefficients[1]
+slope <- model_linear$coefficients[2]
+
+
+ggplot(data_final, aes(x, growth)) +
+  geom_point(aes(x, growth), colour = 'blue') +
+  geom_line(aes(x, expected_growth), colour = 'red') +
+  #geom_point(data = data_spain, 
+             #aes(x, growth), colour = 'red') +
+  geom_abline(slope = 0, intercept = inter,
+              colour = 'red',
+              linetype = 'dashed') +
+  scale_x_continuous(limits = c(0, 55),
+                     breaks = seq(0, 55, 3)) +
+  scale_y_continuous(limits = c(0, 70),
+                     breaks = seq(0, 100, 10)) +
+  annotate(geom = 'text', label = 'mean growth',
+           y = inter + 3.5, x = 18.6,
+           size = 3) +
+  geom_ribbon(data=subset(data_final), 
+          aes(x = x, ymin=0, ymax=expected_growth), fill="orange", alpha = 0.2) +
+  geom_ribbon(data=subset(data_final), 
+          aes(x = x, ymin=0, ymax = expected_growth_good), fill= "green", alpha = 0.2) +
+  geom_abline(slope = slope, intercept = h0) +
+
+  ylab('Growth %') +
+  xlab('Days') +
+  ggtitle('Growth of number total cases COVID-19 Portugal')
+
+
+```
+
+
+
+```{r}
+inter_2 <- round(mean(data_spain[!is.na(y) & x <= 19, growth]), 2)
+inter_2_sd <- round(sd(data_spain[!is.na(y) & x <= 19, growth]), 2)
+
+ggplot(data_final) +
+  scale_x_continuous(labels = rep( '', 5),
+                     limits = c(-0.5, 0.5)) +
+  scale_y_continuous(limits = c(0, 150),
+                     breaks = seq(0, 150, 25)) +
+  ylab('Growth %') +
+  ggtitle('Portugal') +
+  geom_boxplot(aes(y = growth))-> plot_1
+
+ggplot(data_spain) +
+  scale_x_continuous(labels = rep( '', 5),
+                     limits = c(-0.5, 0.5)) +
+  scale_y_continuous(limits = c(0, 150),
+                     breaks = seq(0, 150, 25)) +
+  ylab('') +
+  ggtitle('Spain') +
+  geom_boxplot(aes(y = growth)) -> plot_2
+
+grid.arrange(plot_1, plot_2, nrow = 1)
+
+
+```
+
+```{r}
+ggplot(data_spain) +
+  geom_point(aes(x, y),
+             colour = 'red') +
+  geom_point(data = data_final, aes(x, y),
+             colour = 'blue') +
+  geom_line(data = data_final, aes(x, predic_logis_new),
+            linetype = 'dashed') +
+  geom_line(aes(x, predic_logis)) +
+  # geom_line(data = data_final , aes(x, predic_logis),
+  #           linetype = 'dashed') +
+  geom_line(data = data_final, aes(x, predic_estimated)) +
+  scale_x_continuous(limits = c(0, 40),
+                     breaks = seq(0, 60, 2)) +
+  scale_y_continuous(limits = c(0, 100000)) + 
+  geom_ribbon(data = subset(data_final[x>18]),
+              aes(x = x, ymax = predic_logis_new, ymin = estimated),
+              alpha = 0.2,
+              fill = 'blue') +
+  xlab('Days')+
+  ylab('Total cases') +
+  ggtitle('Growth of number total cases COVID-19 Spain and Portugal')
+```
+
+
+```{r, models, echo=F}
+## model day 8
+
+model_exp <- lm(y ~ I(log(x))*x, data = data_final)
+
+model_growth <- lm(growth ~ x, data = data_final)
+
+
+data_final[, other_predict := exp(0.341*x + 0.752)][x < 13, other_predict := NA]
+
+
+```
+
+
+
+
+## Model calculated day 8 since first confirmed case
+Three models were computed:  
+* Exponential model (green line)  
+* Quadratic model (black line with dashed red line as IC intervals)  
+* log model (blue line)
+
+
+```{r plots, echo = F, warning=F, fig.align='center'}
+
+ggplot(data_final, aes(x, y)) +
+    geom_point(colour = 'blue') +
+    geom_line(aes(x, y_predict.lwr),
+              linetype = 'dashed',
+              colour = 'red') +
+    geom_line(aes(x, y_predict.upr), 
+              linetype = 'dashed', 
+              colour = 'red') +
+  geom_line(aes(x, predic_logis_new)) +
+  geom_line(aes(x, predic_logis)) +
+    geom_line(aes(x, y_predict.fit)) +
+    scale_y_continuous(limits = c(0, 10000), 
+                       breaks = seq(0, 10000, 1000)) +
+    scale_x_continuous(limits = c(0, 50), 
+                       breaks = seq(0, 50, 2)) +
+  xlab('Days') +
+  ylab('Total cases') +
+  ggtitle('Quadratic vs Optimistic Log and Probable log')
+
+
+  
+
+
+  
+```
+
+## Table of predicted values of two models
+
+
+```{r, echo = F, warning= F} 
+data_other <- data_final[, `:=` (y_predict.fit = floor(y_predict.fit),
+                                 y_predict.lwr = floor(y_predict.lwr),
+                                 predic_logis = floor(predic_logis),
+                                 predic_logis_new = floor(predic_logis_new),
+                                 estimated = floor(estimated),
+                                 growth = round(growth, 2),
+                                 expected_growth = round(expected_growth, 1))]
+
+setnames(data_other, old = c('x', 'y', 'y_predict.fit', 'growth',
+                       'expected_growth', 'predic_logis', 'estimated', 'predic_logis_new'),
+         new = c('Days', 'Cases', 'Quadratic', 'Growth', 
+                 'Limit growth', 'Best cenario','Raw Log estimation', 'Worst cenario' ))
+
+
+
+kable(data_other[Days > 48 & Days < 55, .(Days, Cases, Growth, `Limit growth`,
+                                          `Raw Log estimation`, `Worst cenario`)]) %>%
+  kable_styling(bootstrap_options = 'striped')
+
+
+```
+
+
+
+```{r}
+# dados <- data_final[!is.na(y)]
+# test_model <- nls(y ~ SSweibull(x, Asym, Drop, lrc, pwr),
+#                          data = dados,
+#                          start = c(Asym =  5000, Drop = 4500, lrc =  -7 , pwr = 3),
+#                   nls.control(warnOnly = T,
+#                               minFactor = 0.0000000000001,
+#                               maxiter = 10000))
+# 
+# 
+# y <- SSweibull(seq(1, 60), Asym = 5000, Drop = 5000, lrc = -7, pwr = 3)
+# 
+# plot(seq(1, 60), y)
+# 
+# summary(test_model)
+# 
+# predict(test_model, data_2)
+
+cat('Mean of Portugal growth:', inter, 'and sDeviation:', inter_sd, '\n')
+cat('Mean of Spain growth:', inter_2, 'and sDeviation:', inter_2_sd)
+
+
+
+```
+

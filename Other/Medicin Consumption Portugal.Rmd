@@ -1,0 +1,115 @@
+---
+title: "Medicin Consumption in Portugal"
+author: "Martim Almeida"
+date: "2/25/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F)
+
+library(data.table)
+library(here)
+library(ggplot2)
+library(kableExtra)
+
+```
+
+```{r, data_work, warning=F}
+
+data <- fread(here('data', 'HEALTH_PHMC_25022020175027742.csv'))
+
+portugal <- data[Country == 'Portugal']
+spain <- data[Country == 'Spain']
+finland <- data[Country == 'Finland']
+
+
+
+portugal[Measure == '% of total sales' & Year == 2018, .(Variable, Value, Year)][order(-Value)]
+portugal[Measure == '% of total sales' & Year == 2011, .(Variable, Value, Year)][order(-Value)]
+
+spain[Measure == '% of total sales' & Year == 2017, .(Variable, Value, Year)][order(-Value)]
+spain[Measure == '% of total sales' & Year == 2011, .(Variable, Value, Year)][order(-Value)]
+
+finland[Measure == '% of total sales' & Year == 2017, .(Variable, Value, Year)][order(-Value)]
+finland[Measure == '% of total sales' & Year == 2011, .(Variable, Value, Year)][order(-Value)]
+
+data[Measure == '% of total sales' & Variable == 'N05B-Anxiolytics' & Year == 2017, .(Variable, Country, Value )][order(-Value)]
+data[Measure == '% of total sales' & Variable == 'N05B-Anxiolytics' & Year == 2011, .(Variable, Country, Value )][order(-Value)]
+
+data[Measure == '% of total sales' & Variable == "A02A-Antacids" & Year == 2017, .(Country, Value )][order(-Value)]
+
+data[Measure == '% of total sales' & Variable == "N06A-Antidepressants"  & Year == 2017, .(Country, Value )][order(-Value)]
+
+
+m1 <- "Defined daily dosage per 1 000 inhabitants per day"
+
+v5 <- "A02A-Antacids"  
+  
+v2 <- "C07-Beta blocking agents"  
+
+v4 <- "N06A-Antidepressants"
+
+v3 <- "G03-Sex hormones and modulators of the genital system" 
+
+v1 <- 'N05B-Anxiolytics'
+
+
+data[Measure == m1 & Variable == 'N05B-Anxiolytics' & Year == 2017, .(Variable, Country, Value )][order(-Value)]
+data[Measure == m1 & Variable == 'N05B-Anxiolytics' & Year == 2011, .(Variable, Country, Value )][order(-Value)]
+
+data[Measure == m1 & Variable == "A02A-Antacids" & Year == 2017, .(Country, Value )][order(-Value)]
+
+data[Measure == m1 & Variable == "N06A-Antidepressants"  & Year == 2017, .(Country, Value )][order(-Value)]
+
+data[Measure == m1 & Variable == v2 & Year == 2017, .(Country, Value )][order(-Value)]
+
+data[Measure == m1 & Variable == v3 & Year == 2017, .(Country, Value )][order(-Value)]
+
+data[Measure == m1   & Variable == "N-Nervous system" & Year == 2017, .(Country, Value )][order(-Value)]
+```
+
+# Medicine Consumption
+## Introduction
+Increase in medicine consumption could be a good indicator of health status on a population. It can show trends in some diseases that do not express in mortality rates but still affect quality of life of individuals. It is also a motive of concern due to chronical diseases increase and the need to treat them with pharmacological aids. OCDE gathered data from 2011 to 2017/2018 (depends on the country) of medicine consumption, measuring the following variables:
+  
+*"Defined daily dosage per 1 000 inhabitants per day"  
+*"Million of national currency units"    
+*"Million US$ at exchange rate"   
+*"Million US$, purchasing power parity"  
+*"/capita, US$ exchange rate"    
+*"/capita, US$ purchasing power parity"   
+*"% of total sales"   
+*"% share of generics (value)"   
+*"% share of generics (volume)"  
+  
+This report is a basic exploratory analysis of the data avaiable by OCDE, with focus on portugal, comparing with other countries and showing the trends along the time.
+
+## Types of pharmacological drugs
+
+```{r}
+
+variables <- unique(data[, Variable])
+table_1 <- data.table(
+                      'Drug classification' = variables[1:19],
+                      ' ' = variables[20:28])
+
+kable(table_1) %>%
+  kable_styling(bootstrap_options = 'striped')
+
+
+```
+
+
+
+## Exploratory Analysis
+
+```{r}
+ggplot(data[Variable == v1 & Measure == m1], aes(Year, Value)) +
+  geom_line() +
+  facet_wrap(~Country)
+```
+
+
+
+

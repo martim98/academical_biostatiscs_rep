@@ -1,0 +1,38 @@
+---
+title: "gender_statistics"
+author: "M"
+date: "2/15/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo=F}
+knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(ggplot2)
+library(here)
+```
+
+```{r, data_work}
+
+data_1 <- fread(here('data', 'Gender_StatsCountry-Series.csv'))
+data_2 <- fread(here('data', 'Gender_StatsCountry.csv'))
+data_3 <- fread(here('data', 'Gender_StatsData.csv'), header = T)
+data_4 <- fread(here('data', 'Gender_StatsFootNote.csv'), header = T)
+data_5 <- fread(here('data', 'Gender_StatsSeries-Time.csv'), header = T)
+data_6 <- fread(here('data', 'Gender_StatsSeries.csv'), header = T)
+
+c <- seq(1960, 2019)
+data_final <- melt(data_3,
+                   id.vars = c('Country Name',
+                                       'Country Code',
+                                       'Indicator Name',
+                                       'Indicator Code'),
+                   measure.vars = as.character(c),
+                   value.name = 'Data',
+                   variable.name = 'Year')
+data_without_na <- data_final[!is.na(Data)]
+                    
+unique(data_final[, `Country Name`])                    
+
+```
+

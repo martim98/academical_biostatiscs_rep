@@ -1,0 +1,20 @@
+---
+title: "Python aulas"
+author: "Martim"
+date: "3/17/2020"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(reticulate)
+```
+
+## Introdução
+
+```{r}
+source_python('functions.py')
+
+some_func(2, 3)
+```
+

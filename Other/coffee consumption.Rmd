@@ -1,0 +1,223 @@
+---
+title: "Coffee consumption and exams in University"
+output:
+  html_document:
+    theme: united
+date: "2/13/2020"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F)
+library(data.table)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(kableExtra)
+
+theme_set(new = theme_classic())
+
+```
+
+
+
+```{r, working_data}
+
+data <- fread('dados_cafe.csv')
+
+colnames(data) <- c('sex', 'age', 'preference', 'first_coffee', 'n_coffees', 'n_coffees_exams', 'hours_study',
+                    'hours_sleep', 'hours_sleep_exams', 'opinion')
+
+data[sex == 'Masculino', sex := 'masculino']
+data[sex == 'Feminino', sex := 'feminino']
+data[sex == 'Femenino', sex := 'feminino']
+data[sex == 'Feminino 18', sex := 'feminino']
+data[preference == 'Sim', preference := 'yes']
+data[preference == 'Não', preference := 'no']
+data[opinion == 'Sim', opinion := 'yes']
+data[opinion == 'Não', opinion := 'no']
+data_final <- data[!age > 25]
+
+
+```
+
+# Does coffee consumption changes between exams periods?
+## Introduction
+In the context of a faculty project, we proposed to analyse if coffee consumptions changes between exams periods with non-exams periods and if that would change students performance.
+To anwser this questions we made a inquiry made available online and shared via social media to reach students in our or other universities.
+The Inquiry had 10 questions:  
+- What is your sex?  
+- What is your age?  
+- Do you consume cofee? 
+- Since when you drink coffee?  
+- Usually how many coffees do you drink?  
+- In exams period, how many coffees do you drink?  
+- How many hours do you study per day?  
+- How many hours do you sleep per day?  
+- In exams period, how many hours do you sleep per day?
+- Do you think coffee increases the number of hours you concentrate to study?
+
+## Exploratory analysis
+
+
+```{r, first_analysis, fig.width = 10}
+
+ggplot(data_final[, .(sex)], aes(sex, fill = sex)) +
+  geom_histogram(stat = 'count') -> p1
+
+ggplot(data_final[, .(sex, age)], aes(sex, age, fill = sex)) +
+  geom_boxplot(stat = 'boxplot') +
+  scale_y_continuous(limits = c(16, 25), labels = seq(16,25), breaks = seq(16, 25)) -> p2
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+99 participants answers were retrived, ages above 25 were discarted, so we excluded 2 observations, making a total of 97 observations.  
+Now we plot the number of coffes consumed during normal periods and exams periods dividing by sex and by preference of coffee.
+
+```{r}
+modelo <- glm(n_coffees ~ hours_study , data = data, family = poisson(link = 'log'))
+
+
+coefs <- modelo$coefficients
+summary(modelo)
+exp(coefs)
+
+
+```
+
+
+```{r, scatter_plots, fig.width=10}
+
+ggplot(data_final, aes(n_coffees, n_coffees_exams, color = sex)) +
+  geom_point(position = 'jitter', size = 1) +
+  scale_y_continuous(breaks = c(0, 1,2,3,4, 5, 6)) +
+  ylab('nº coffees during exams') +
+  ggtitle('Coffee consumption by sex')-> p3
+
+ggplot(data_final, aes(n_coffees, n_coffees_exams, color = preference)) +
+  geom_point(position = 'jitter', size = 1) +
+  scale_y_continuous(breaks = c(0, 1,2,3,4, 5, 6)) +
+  ylab('nº coffees during exams') +
+  xlab('nº coffees normal periods') +
+  ggtitle('Coffee consumption by preference')-> p4
+
+ggplot(data_final, aes(n_coffees, n_coffees_exams, color = opinion)) +
+  geom_point(position = 'jitter', size = 1) +
+  scale_y_continuous(breaks = c(0, 1,2,3,4, 5, 6)) +
+  ylab('nº coffees during exams') +
+  xlab('nº coffees normal periods') +
+  ggtitle('Coffee consumption by opinion')-> p5
+
+grid.arrange(p3, p4, p5, ncol = 3)
+
+```
+
+By this plots we can conclude that individuals that don't like to drink coffee, tend to drink less and never drink unless they are in exams period. Also, there is a clear linear correlation between the number of coffees consumed in the two periods that can be seen in the two graphs. In the plot divided by sex, we can observe that there is no clear or obvious distinction between the two sexs in terms of coffee consumed in both periods. There is also an evidence that if an individual has a favourable opinion about the effects of coffee, it tends also to drink more coffee.
+
+
+
+## Statistical Analysis
+
+First, it is important to analyse presumptions of data, if data follows normality.
+
+```{r, presumptions}
+
+shapiro.test(data_final[, n_coffees]) -> shapiro_1
+shapiro.test(data_final[, n_coffees_exams]) -> shapiro_2
+shapiro.test(data_final[, hours_sleep]) -> shapiro_3
+shapiro.test(data_final[, hours_study]) -> shapiro_4
+shapiro.test(data_final[, hours_sleep_exams]) -> shapiro_5
+
+table <- data.table(Test = c('Number of coffees',
+                             'Number of coffees in exams period',
+                             'Hours of sleep',
+                             'Hours of study',
+                             'Hours of sleep during exams'),
+                    p_value = c(shapiro_1$p.value, 
+                                shapiro_2$p.value,
+                                shapiro_3$p.value,
+                                shapiro_4$p.value,
+                                shapiro_5$p.value),
+                    Decision = rep('reject H0', 5))
+
+kable(table, caption = 'Shapiro tests') %>%
+  kable_styling(bootstrap_options = 'striped')
+
+
+```
+As expected, non of the variables follow a normal distribution, non parametric tests will be used to make conclusions about the observations.
+
+```{r, analysis}
+
+wilcox.test(data_final[, n_coffees_exams], data_final[, n_coffees], conf.int = T) -> wil_1
+wilcox.test(data_final[, hours_sleep_exams], data_final[, hours_sleep], conf.int = T) -> wil_2
+
+table2 <- data.table(Test = c('Coffee conumption between exams and normal period',
+                              'Hours of sleep between exams and normal period'),
+                     p_value = c(wil_1$p.value,
+                                 wil_2$p.value),
+                     Conf_int_min = c(wil_1$conf.int[1],
+                                             wil_2$conf.int[1]),
+                      Conf_int_max= c(wil_1$conf.int[2],
+                                             wil_2$conf.int[2]))
+
+kable(table2, caption = 'Wilcoxon tests') %>%
+  kable_styling(bootstrap_options = 'striped')
+
+
+```
+
+After using wilcoxon man_whitney tests we can conclude that at a significance level of 0.05 there is evidence that both the number of coffees consumed and the number of hours slept between exams and normal periods change significantly. The number of coffees consumed cleary increases by almost one coffee and the number of hours of sleep decreases by almost 1 hour.
+
+# Conclusion
+So we can conclude that exams periods can increase the number of coffees consumed and that individuals tend to sleep less in this period.
+
+```{r}
+
+data_final[n_coffees == 1.5, n_coffees := 1]
+data_final[n_coffees_exams == 1.5, n_coffees_exams := 1]
+
+ggplot(data_final, aes(n_coffees)) +
+  geom_bar(stat = 'count') +
+  scale_y_continuous(breaks = seq(0, 40, 5), 
+                     limits = c(0, 40)) +
+  scale_x_continuous( breaks = seq(0, 6, 1)) -> p1
+  
+ggplot(data_final, aes(n_coffees_exams)) +
+  geom_bar(stat = 'count') +
+  scale_y_continuous(breaks = seq(0, 40, 5), 
+                     limits = c(0, 40)) +
+  scale_x_continuous( breaks = seq(0, 6, 1)) -> p2
+
+grid.arrange(p1, p2, ncol = 2)
+
+
+```
+
+```{r}
+data_final$first_coffee <- as.integer(data_final$first_coffee)
+data_model <- data_final[!is.na(first_coffee)]
+
+final <-lm(formula = hours_sleep_exams ~ ., data= data_model)
+summary(final)
+#a <- step(final,direction =  'both')
+#a <- lm(hours_sleep_exams ~ sex + n_coffees_exams + hours_sleep, data = data_model)
+#summary(a)
+
+model_glm <- glm(hours_sleep_exams ~ sex + n_coffees_exams + hours_sleep, data = data_model,
+                 family = poisson(link = 'log'))
+summary(model_glm)
+
+df <- data.frame(preference = 'yes', n_coffees = 2, hours_sleep = 3, hours_sleep_exams = 7)
+
+#predict(final, df)
+
+```
+
+```{r}
+ggplot(data_model, aes(n_coffees_exams, hours_sleep_exams, colour = sex, size = hours_sleep)) +
+  geom_point()
+
+fwrite(data_model, 'coffee_data.csv')
+```
+
