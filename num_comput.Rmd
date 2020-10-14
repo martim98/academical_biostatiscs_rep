@@ -1,0 +1,50 @@
+---
+title: "Numerical computing"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Numerical Computing Algorithms
+
+## Finding roots for a function
+### Newton's method
+$x_{i + 1} = x_{i} - \frac{f(x_i)}{f\prime(x_{i})}$
+Se
+
+$g(x) = x - \frac{f(x)}{f\prime(x)}$
+```{r}
+f <- function(x) {
+  res <-exp(x) + exp(-x) - 5 - x
+  return(res)
+}
+expr <- expression(exp(x) + exp(-x) - 5 - x)
+
+first_deriv <- deriv(expr, namevec = "x", func = T)
+
+
+
+e <- 1
+x_1 <- 1.2
+iter <- 0
+while(e > 0.00001) {
+  x_i <- (f(x_1) / first_deriv(x_1))[1]
+  print((f(x_1) / first_deriv(x_1)[1]))
+  print(f(x_1))
+  print(x_i)
+  e <- abs(x_1 - x_i)
+  x_1 <- x_i
+  iter <- iter + 1
+  cat('iter: ', iter, 'x_i: ', x_1, 'x_i+1: ', x_i, 'Error: ', e, '\n', '---------------', '\n')
+}
+
+  
+  
+  
+  
+  
+```
+
+
